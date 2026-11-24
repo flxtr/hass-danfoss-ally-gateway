@@ -1,4 +1,5 @@
 {
     "files.insertFinalNewline": true,
+    "dev.containers.forwardGpgAgent": false,
     "python-envs.defaultEnvManager": "ms-python.python:system"
 }
