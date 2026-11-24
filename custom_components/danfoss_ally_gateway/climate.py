@@ -86,7 +86,7 @@ class DanfossAllyRoomClimate(DanfossAllyEntityBase, ClimateEntity):
     """Virtual climate entity for a Danfoss Ally room."""
 
     _attr_translation_key = "room"
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_hvac_modes = [HVACMode.HEAT]
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE
