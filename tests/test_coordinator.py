@@ -667,13 +667,36 @@ class TestPowerCycleDetection:
 
         # No E10, but schedule is empty on TRV
         mock_backend.async_read_sw_error_code.return_value = "ok"
-        mock_backend.async_get_weekly_schedule.return_value = None
+        mock_backend.async_get_weekly_schedule.return_value = []
 
         await coord._async_check_power_cycle()
 
         # Should re-program for each TRV
         assert mock_backend.async_clear_weekly_schedule.call_count == 2
         assert mock_backend.async_set_weekly_schedule.call_count >= 2
+        await coord.async_teardown()
+
+    async def test_power_cycle_unreadable_schedule_no_recovery(
+        self, hass, mock_backend, subentry_data
+    ):
+        """Unreadable schedule (None, e.g. Z2M) without E10 is not a power cycle."""
+        coord = RoomCoordinator(hass, mock_backend, subentry_data)
+        await coord.async_setup()
+
+        ws = WeeklySchedule()
+        ws.days[1] = DaySchedule(events=[ScheduleEvent(360, 21.0)])
+        await coord.async_program_schedule(ws)
+
+        mock_backend.async_clear_weekly_schedule.reset_mock()
+        mock_backend.async_set_weekly_schedule.reset_mock()
+
+        mock_backend.async_read_sw_error_code.return_value = "ok"
+        mock_backend.async_get_weekly_schedule.return_value = None
+
+        await coord._async_check_power_cycle()
+
+        mock_backend.async_clear_weekly_schedule.assert_not_called()
+        mock_backend.async_set_weekly_schedule.assert_not_called()
         await coord.async_teardown()
 
     async def test_no_power_cycle_schedule_present(

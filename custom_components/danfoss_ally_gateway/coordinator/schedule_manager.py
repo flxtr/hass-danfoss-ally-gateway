@@ -444,6 +444,11 @@ class ScheduleDelegate:
             except Exception:  # noqa: BLE001
                 continue
 
+            # None means the backend cannot read the schedule back (Z2M);
+            # only a confirmed empty schedule indicates a power cycle.
+            if transitions is None:
+                continue
+
             if not transitions:
                 _LOGGER.warning(
                     "TRV %s in room '%s' has empty schedule (power cycle?). "
