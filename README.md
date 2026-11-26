@@ -56,7 +56,7 @@ A [Home Assistant](https://www.home-assistant.io/) custom integration that repla
    - **Room name** and area assignment
    - **TRV devices** -- select one or more Danfoss Ally TRVs
    - **External temperature sensor** (optional) -- any HA temperature sensor
-   - **Window sensors** (optional) -- window/door contacts; while any is open, all TRVs in the room are set to window open (no effect on TRVs with radiator covered enabled; the TRV firmware disables window detection in that mode)
+   - **Window sensors** (optional) -- window/door contacts; while any is open, all TRVs in the room are set to window open (TRVs with radiator covered enabled ignore window open, so radiator covered is switched off on them while a window is open and restored afterwards)
    - **Humidity sensor** (optional) -- any HA humidity sensor; shown as current humidity on the room thermostat
    - **Heat source** (optional) -- a climate or binary sensor entity
    - **Remote climate** (optional) -- a climate entity for bidirectional setpoint sync
