@@ -58,6 +58,9 @@ class MockBackend(DanfossBackend):
     async def async_set_external_window_open(self, trv_id, is_open):
         """Placeholder."""
 
+    async def async_set_radiator_covered(self, trv_id, covered):
+        """Placeholder."""
+
     async def async_send_setpoint_command(self, trv_id, temperature, command_type):
         """Placeholder."""
 
@@ -99,6 +102,7 @@ class MockBackend(DanfossBackend):
         self.async_set_load_room_mean = AsyncMock()
         self.async_set_load_balancing_enable = AsyncMock()
         self.async_set_external_window_open = AsyncMock()
+        self.async_set_radiator_covered = AsyncMock()
         self.async_send_setpoint_command = AsyncMock()
         self.async_send_preheat_command = AsyncMock()
         self.async_sync_time = AsyncMock()

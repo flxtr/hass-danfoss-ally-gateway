@@ -5,6 +5,7 @@ sub-modules:
 - ext_temp: External temperature forwarding with Danfoss timing specs
 - load_balancer: 15-minute load balancing cycle
 - window: Window open coordination across TRVs
+- covered_quirk: Suspend radiator_covered while window sensors report open
 - preheat: Preheat command forwarding
 - setpoint: Manual dial forwarding, remote climate sync
 - schedule_manager: Schedule programming, mode control, power-cycle recovery
@@ -13,6 +14,7 @@ sub-modules:
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import time
@@ -59,6 +61,7 @@ from ..const import (
     Z2M_ATTR_LOAD_ROOM_MEAN,
 )
 from ..schedule import WeeklySchedule
+from .covered_quirk import CoveredQuirkDelegate
 from .ext_temp import ExtTempDelegate
 from .load_balancer import LoadBalanceDelegate
 from .preheat import PreheatDelegate
@@ -120,6 +123,8 @@ class RoomCoordinator:
             subentry_data.get(CONF_WINDOW_SENSORS, [])
         )
         self._window_sensor_open: bool | None = None
+        # Serializes window sensor writes with the covered quirk
+        self._window_lock = asyncio.Lock()
 
         # Current room state
         self.state = RoomState(room_name=self._room_name)
@@ -141,6 +146,13 @@ class RoomCoordinator:
             hass, backend, self._room_name, self._trv_ids
         )
         self._window = WindowDelegate(
+            backend,
+            self._room_name,
+            self._trv_ids,
+            lambda: self.state.trv_states,
+        )
+        self._covered_quirk = CoveredQuirkDelegate(
+            hass,
             backend,
             self._room_name,
             self._trv_ids,
@@ -242,6 +254,7 @@ class RoomCoordinator:
                 self.hass, self._window_sensor_ids, self._handle_window_sensor_change
             )
             self._unsub_callbacks.append(unsub)
+            await self._covered_quirk.async_setup()
             await self._async_update_window_sensors()
 
         # Remote climate entity
@@ -330,6 +343,10 @@ class RoomCoordinator:
         if not self._window_sensor_ids:
             self.hass.async_create_task(
                 self._window.async_check_coordination(trv_id, trv_state)
+            )
+        elif trv_state.radiator_covered is True:
+            self.hass.async_create_task(
+                self._async_check_covered_quirk(trv_id, trv_state)
             )
 
         # Preheat coordination
@@ -520,32 +537,52 @@ class RoomCoordinator:
         """Write external window open to TRVs while any window sensor is open.
 
         Unavailable or unknown sensors count as closed, so a dead sensor
-        never blocks heating.
+        never blocks heating. Covered TRVs ignore external window open, so
+        radiator_covered is switched off on them while a window is open.
         """
-        is_open = any(
-            (state := self.hass.states.get(entity_id)) is not None
-            and state.state == STATE_ON
-            for entity_id in self._window_sensor_ids
-        )
-        if self._window_sensor_open == is_open:
-            return
+        async with self._window_lock:
+            is_open = any(
+                (state := self.hass.states.get(entity_id)) is not None
+                and state.state == STATE_ON
+                for entity_id in self._window_sensor_ids
+            )
+            if self._window_sensor_open == is_open:
+                return
 
-        self._window_sensor_open = is_open
-        _LOGGER.debug(
-            "Window sensors in room '%s' report %s",
-            self._room_name,
-            "open" if is_open else "closed",
-        )
+            self._window_sensor_open = is_open
+            _LOGGER.debug(
+                "Window sensors in room '%s' report %s",
+                self._room_name,
+                "open" if is_open else "closed",
+            )
 
-        for trv_id in self._trv_ids:
-            try:
-                await self._backend.async_set_external_window_open(trv_id, is_open)
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception(
-                    "Failed to set external_window_open on TRV %s in room '%s'",
-                    trv_id,
-                    self._room_name,
-                )
+            if is_open:
+                await self._covered_quirk.async_suspend_all()
+            for trv_id in self._trv_ids:
+                await self._async_set_external_window_open(trv_id, is_open)
+            if not is_open:
+                await self._covered_quirk.async_restore_all()
+
+    async def _async_check_covered_quirk(
+        self, trv_id: str, trv_state: TRVState
+    ) -> None:
+        """Suspend or confirm radiator_covered after a TRV report."""
+        async with self._window_lock:
+            if await self._covered_quirk.async_check(
+                trv_id, trv_state, self._window_sensor_open is True
+            ):
+                await self._async_set_external_window_open(trv_id, True)
+
+    async def _async_set_external_window_open(self, trv_id: str, is_open: bool) -> None:
+        """Write external window open to one TRV, logging failures."""
+        try:
+            await self._backend.async_set_external_window_open(trv_id, is_open)
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception(
+                "Failed to set external_window_open on TRV %s in room '%s'",
+                trv_id,
+                self._room_name,
+            )
 
     # ── Remote Climate Sync ───────────────────────────────────────────
 
