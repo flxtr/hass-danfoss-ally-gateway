@@ -30,6 +30,7 @@ from .const import (
     CONF_BACKEND,
     CONF_HEAT_SOURCE,
     CONF_HEAT_SOURCE_TYPE,
+    CONF_HUMIDITY_SENSOR,
     CONF_MQTT_BASE_TOPIC,
     CONF_PREHEAT_ENABLED,
     CONF_REMOTE_CLIMATE,
@@ -295,6 +296,7 @@ def _extract_room_data(user_input: dict[str, Any]) -> dict[str, Any]:
         CONF_TRV_ENTITIES: user_input[CONF_TRV_ENTITIES],
         CONF_TEMP_SENSOR: user_input.get(CONF_TEMP_SENSOR, ""),
         CONF_WINDOW_SENSORS: user_input.get(CONF_WINDOW_SENSORS, []),
+        CONF_HUMIDITY_SENSOR: user_input.get(CONF_HUMIDITY_SENSOR, ""),
         CONF_HEAT_SOURCE: user_input.get(CONF_HEAT_SOURCE, ""),
         CONF_HEAT_SOURCE_TYPE: user_input.get(CONF_HEAT_SOURCE_TYPE, ""),
         CONF_REMOTE_CLIMATE: user_input.get(CONF_REMOTE_CLIMATE, ""),
@@ -354,6 +356,12 @@ def _build_room_schema(
                         BinarySensorDeviceClass.OPENING,
                     ],
                     multiple=True,
+                )
+            ),
+            _field(CONF_HUMIDITY_SENSOR): selector.EntitySelector(
+                selector.EntitySelectorConfig(
+                    domain="sensor",
+                    device_class=SensorDeviceClass.HUMIDITY,
                 )
             ),
             _field(CONF_HEAT_SOURCE_TYPE): selector.SelectSelector(
